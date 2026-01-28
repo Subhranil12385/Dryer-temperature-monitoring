@@ -1,0 +1,2391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPIL Chennai - Dryer Chamber Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.3.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 10px #0ff; }
+            50% { text-shadow: 0 0 20px #0ff; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        @keyframes ripple {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(3); opacity: 0; }
+        }
+
+        @keyframes dataStream {
+            0% { 
+                transform: translateY(-100%) scaleX(1);
+                opacity: 0;
+            }
+            10% { 
+                opacity: 1;
+            }
+            90% { 
+                opacity: 1;
+            }
+            100% { 
+                transform: translateY(100%) scaleX(0.8);
+                opacity: 0;
+            }
+        }
+
+        @keyframes uploadGlow {
+            0%, 100% { 
+                box-shadow: 0 0 10px #00ffff,
+                           0 0 20px #00ffff,
+                           inset 0 0 10px rgba(0, 255, 255, 0.3);
+            }
+            50% { 
+                box-shadow: 0 0 20px #00ffff,
+                           0 0 40px #00ffff,
+                           inset 0 0 20px rgba(0, 255, 255, 0.5);
+            }
+        }
+
+        @keyframes iconPulse {
+            0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: drop-shadow(0 0 5px #00ffff) brightness(1);
+            }
+            25% { 
+                transform: scale(1.05) rotate(5deg);
+                filter: drop-shadow(0 0 15px #00ffff) brightness(1.2);
+            }
+            50% { 
+                transform: scale(1) rotate(0deg);
+                filter: drop-shadow(0 0 10px #00ffff) brightness(1);
+            }
+            75% { 
+                transform: scale(1.03) rotate(-3deg);
+                filter: drop-shadow(0 0 12px #00ffff) brightness(1.1);
+            }
+        }
+
+        @keyframes scanUpload {
+            0% { 
+                transform: translateX(-100%) translateY(-50%);
+                opacity: 0;
+            }
+            10% { 
+                opacity: 1;
+            }
+            90% { 
+                opacity: 1;
+            }
+            100% { 
+                transform: translateX(100%) translateY(-50%);
+                opacity: 0;
+            }
+        }
+
+        @keyframes nodePulse {
+            0%, 100% { 
+                opacity: 0.3;
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 0.8;
+                transform: scale(1.1);
+            }
+        }
+
+        @keyframes quoteAnimation {
+            0% {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            10% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            80% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-20px) scale(0.95);
+            }
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0f;
+            color: #0ff;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .scanline {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(to right, transparent, #0ff, transparent);
+            animation: scanline 4s linear;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+        }
+
+        @keyframes scanline {
+            0% { 
+                transform: translateY(-100%); 
+                opacity: 1;
+            }
+            100% { 
+                transform: translateY(100vh); 
+                opacity: 1;
+            }
+        }
+
+        /* Quote Display System - Smaller and positioned lower */
+        .quote-container {
+            position: fixed;
+            top: 70%; /* Positioned lower */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            pointer-events: none;
+            width: 80%;
+            max-width: 600px; /* Smaller max width */
+            text-align: center;
+        }
+
+        .quote-display {
+            background: linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.95));
+            border: 1px solid #0ff; /* Thinner border */
+            border-radius: 10px; /* Smaller radius */
+            padding: 15px 20px; /* Less padding */
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3),
+                       inset 0 0 10px rgba(0, 255, 255, 0.1);
+            animation: quoteAnimation 5s ease-in-out;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .quote-display::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #0ff, transparent);
+            animation: scanUpload 3s linear infinite;
+        }
+
+        .quote-text {
+            font-size: 0.9em; /* Smaller font */
+            line-height: 1.4;
+            color: #fff;
+            margin-bottom: 8px;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+        }
+
+        .quote-author {
+            font-size: 0.8em; /* Smaller font */
+            color: #0af;
+            font-style: italic;
+            text-shadow: 0 0 3px rgba(0, 170, 255, 0.3);
+        }
+
+        .quote-icon {
+            font-size: 24px; /* Smaller icon */
+            color: #0ff;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 0 5px #00ffff);
+        }
+
+        .container {
+            max-width: 1800px; /* Increased width */
+            margin: 0 auto;
+            padding: 30px; /* Increased padding */
+            position: relative;
+            z-index: 2;
+        }
+
+        header {
+            text-align: center;
+            padding: 25px; /* More padding */
+            background: rgba(0, 20, 40, 0.95);
+            border: 2px solid #0ff;
+            border-radius: 15px; /* Slightly larger radius */
+            margin-bottom: 30px; /* More margin */
+            animation: slideIn 0.5s ease-out;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.4);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            letter-spacing: 4px;
+            margin-bottom: 15px; /* More margin */
+            color: #0ff;
+            animation: glow 2s infinite;
+        }
+
+        .upload-zone {
+            background: rgba(0, 20, 40, 0.8);
+            border: 2px dashed #0ff;
+            border-radius: 15px; /* Larger radius */
+            padding: 50px; /* More padding */
+            text-align: center;
+            margin: 30px 0; /* More margin */
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            animation: uploadGlow 2s infinite;
+        }
+
+        .upload-zone:hover {
+            background: rgba(0, 40, 80, 0.9);
+            border-color: #f0f;
+            animation: uploadGlow 1s infinite;
+        }
+
+        .upload-icon-container {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px; /* More margin */
+        }
+
+        .upload-icon {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: iconPulse 3s infinite;
+        }
+
+        .upload-icon::before {
+            content: "📤";
+            font-size: 60px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .upload-icon::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(circle, rgba(0, 255, 255, 0.4) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .data-stream {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .data-particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #00ffff;
+            border-radius: 50%;
+            animation: dataStream 2s linear infinite;
+            filter: drop-shadow(0 0 3px #00ffff);
+        }
+
+        .scan-beam {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(to right, transparent, #00ffff, transparent);
+            transform: translateY(-50%);
+            animation: scanUpload 3s linear infinite;
+            filter: drop-shadow(0 0 5px #00ffff);
+        }
+
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            pointer-events: none;
+        }
+
+        .grid-node {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #00ffff;
+            border-radius: 50%;
+            animation: nodePulse 2s infinite;
+            filter: drop-shadow(0 0 3px #00ffff);
+        }
+
+        .data-summary {
+            background: rgba(0, 40, 80, 0.9);
+            border: 2px solid #0ff;
+            border-radius: 15px;
+            padding: 25px; /* More padding */
+            margin: 30px 0; /* More margin */
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Larger min width */
+            gap: 20px; /* More gap */
+            animation: fadeIn 0.5s;
+        }
+
+        .summary-item {
+            text-align: center;
+            padding: 20px; /* More padding */
+            background: rgba(0, 60, 100, 0.6);
+            border-radius: 12px; /* Larger radius */
+            border: 1px solid #0af;
+        }
+
+        .summary-label {
+            font-size: 1em; /* Slightly larger */
+            color: #0af;
+            margin-bottom: 10px; /* More margin */
+        }
+
+        .summary-value {
+            font-size: 1.6em; /* Slightly larger */
+            color: #0ff;
+            font-weight: bold;
+        }
+
+        .controls-panel {
+            background: rgba(0, 20, 40, 0.9);
+            border: 2px solid #0ff;
+            border-radius: 15px;
+            padding: 25px; /* More padding */
+            margin: 30px 0; /* More margin */
+            animation: fadeIn 0.5s;
+        }
+
+        .filter-type-selector {
+            display: flex;
+            gap: 15px; /* More gap */
+            margin-bottom: 25px; /* More margin */
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .filter-type-btn {
+            background: rgba(0, 40, 80, 0.7);
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 12px 25px; /* More padding */
+            border-radius: 8px; /* Larger radius */
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+        }
+
+        .filter-type-btn.active {
+            background: rgba(0, 80, 120, 1);
+            border-color: #f0f;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        .filter-type-btn:hover {
+            background: rgba(0, 80, 120, 0.9);
+            transform: translateY(-2px);
+        }
+
+        .filter-section {
+            display: none;
+            padding: 20px; /* More padding */
+            background: rgba(0, 40, 80, 0.4);
+            border-radius: 10px; /* Larger radius */
+            margin-bottom: 20px; /* More margin */
+        }
+
+        .filter-section.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+        .filter-section-title {
+            color: #0ff;
+            margin-bottom: 15px; /* More margin */
+            font-size: 1.1em; /* Slightly larger */
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .time-range-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); /* Larger min width */
+            gap: 15px; /* More gap */
+        }
+
+        .time-range-btn {
+            background: rgba(0, 40, 80, 0.7);
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 12px; /* More padding */
+            border-radius: 8px; /* Larger radius */
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+            font-size: 0.95em;
+        }
+
+        .time-range-btn:hover {
+            background: rgba(0, 80, 120, 0.9);
+            transform: translateY(-2px);
+        }
+
+        .time-range-btn.active {
+            background: rgba(0, 80, 120, 1);
+            border-color: #f0f;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        .custom-range-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Larger min width */
+            gap: 20px; /* More gap */
+        }
+
+        .date-time-input {
+            display: flex;
+            flex-direction: column;
+            gap: 8px; /* More gap */
+        }
+
+        .date-time-input label {
+            color: #0ff;
+            font-size: 1em; /* Slightly larger */
+        }
+
+        .date-time-row {
+            display: flex;
+            gap: 15px; /* More gap */
+        }
+
+        .date-time-row input[type="date"],
+        .date-time-row input[type="time"] {
+            flex: 1;
+            background: rgba(0, 40, 80, 0.7);
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 10px; /* More padding */
+            border-radius: 8px; /* Larger radius */
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+        }
+
+        .date-time-row input[type="date"]::-webkit-calendar-picker-indicator,
+        .date-time-row input[type="time"]::-webkit-calendar-picker-indicator {
+            filter: invert(1) brightness(2);
+            cursor: pointer;
+        }
+
+        .shift-date-selector input::-webkit-calendar-picker-indicator {
+            filter: invert(1) brightness(2);
+            cursor: pointer;
+        }
+
+        .shift-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Larger min width */
+            gap: 15px; /* More gap */
+        }
+
+        .shift-btn {
+            background: rgba(0, 40, 80, 0.7);
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 12px; /* More padding */
+            border-radius: 8px; /* Larger radius */
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+            font-size: 0.95em;
+        }
+
+        .shift-btn:hover {
+            background: rgba(0, 80, 120, 0.9);
+            transform: translateY(-2px);
+        }
+
+        .shift-btn.active {
+            background: rgba(0, 80, 120, 1);
+            border-color: #f0f;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        .shift-date-selector {
+            margin: 20px 0; /* More margin */
+        }
+
+        .shift-date-selector label {
+            color: #0ff;
+            margin-bottom: 8px; /* More margin */
+            display: block;
+            font-size: 1em; /* Slightly larger */
+        }
+
+        .shift-date-selector input {
+            width: 100%;
+            max-width: 320px; /* Slightly larger */
+            background: rgba(0, 40, 80, 0.7);
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 10px; /* More padding */
+            border-radius: 8px; /* Larger radius */
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+        }
+
+        .sensor-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); /* Larger min width */
+            gap: 15px; /* More gap */
+            margin: 20px 0; /* More margin */
+        }
+
+        .checkbox-item {
+            background: rgba(0, 40, 80, 0.4);
+            border: 2px solid #0ff;
+            border-radius: 10px; /* Larger radius */
+            padding: 15px 20px; /* More padding */
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 15px; /* More gap */
+            min-height: 60px; /* Taller */
+        }
+
+        .checkbox-item:hover {
+            background: rgba(0, 80, 120, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 20px; /* Larger */
+            height: 20px; /* Larger */
+            cursor: pointer;
+            accent-color: #0ff;
+        }
+
+        .checkbox-item label {
+            cursor: pointer;
+            flex: 1;
+            font-size: 1em; /* Slightly larger */
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px; /* More gap */
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 25px; /* More margin */
+        }
+
+        button {
+            background: rgba(0, 80, 120, 0.9);
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 15px 30px; /* More padding */
+            border-radius: 8px; /* Larger radius */
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em; /* Slightly larger */
+            transition: all 0.2s;
+            min-width: 160px;
+        }
+
+        button:hover {
+            background: rgba(0, 120, 180, 1);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
+        button.export {
+            background: rgba(0, 180, 80, 0.9);
+            border-color: #0f0;
+        }
+
+        button.export:hover {
+            background: rgba(0, 220, 100, 1);
+        }
+
+        button.reset {
+            background: rgba(180, 0, 80, 0.9);
+            border-color: #f0f;
+        }
+
+        button.reset:hover {
+            background: rgba(220, 0, 100, 1);
+        }
+
+        button.upload-new {
+            background: rgba(180, 80, 0, 0.9);
+            border-color: #fa0;
+        }
+
+        button.upload-new:hover {
+            background: rgba(220, 100, 0, 1);
+        }
+
+        button.view-toggle {
+            background: rgba(80, 0, 180, 0.9);
+            border-color: #a0f;
+            padding: 15px 25px; /* More padding */
+            min-width: 180px;
+        }
+
+        button.view-toggle:hover {
+            background: rgba(100, 0, 220, 1);
+        }
+
+        .chart-container {
+            background: rgba(0, 20, 40, 0.9);
+            border: 2px solid #0ff;
+            border-radius: 15px;
+            padding: 25px; /* More padding */
+            margin: 30px 0; /* More margin */
+            animation: fadeIn 0.5s;
+        }
+
+        .chart-title {
+            text-align: center;
+            font-size: 1.6em; /* Slightly larger */
+            margin-bottom: 20px; /* More margin */
+            color: #0ff;
+            letter-spacing: 1px;
+        }
+
+        /* Fixed Stats Grid - All cards in one row, centered properly */
+        .stats-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px; /* More gap */
+            margin: 30px 0; /* More margin */
+            justify-content: center;
+        }
+
+        .stat-card {
+            background: rgba(0, 40, 80, 0.7);
+            border: 2px solid #0ff;
+            border-radius: 12px; /* Larger radius */
+            padding: 20px; /* More padding */
+            text-align: center;
+            transition: all 0.3s;
+            flex: 1 1 calc(16.666% - 20px); /* 6 cards per row */
+            min-width: 150px; /* Minimum width */
+            max-width: 180px; /* Maximum width */
+            box-sizing: border-box;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 255, 255, 0.4);
+        }
+
+        .stat-card.overall {
+            border-color: #fff;
+            background: rgba(80, 80, 120, 0.7);
+            min-width: 250px; /* Wider for overall card */
+            max-width: 300px;
+        }
+
+        .bar-chart-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px; /* More gap */
+            margin: 30px 0; /* More margin */
+        }
+
+        .bar-chart-item {
+            background: rgba(0, 40, 80, 0.6);
+            border: 2px solid #0af; /* Thicker border */
+            border-radius: 12px; /* Larger radius */
+            padding: 20px; /* More padding */
+        }
+
+        .bar-chart-title {
+            text-align: center;
+            color: #0ff;
+            font-size: 1.2em; /* Slightly larger */
+            margin-bottom: 15px; /* More margin */
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Fixed Shift Charts Container - Middle aligned */
+        .shift-charts-container {
+            display: grid;
+            gap: 25px; /* More gap */
+            margin: 30px 0; /* More margin */
+            width: 100%;
+        }
+
+        .shift-charts-container.stacked {
+            grid-template-columns: 1fr;
+        }
+
+        .shift-charts-container.sidebyside {
+            grid-template-columns: repeat(3, 1fr); /* Always 3 columns for side-by-side */
+            align-items: start; /* Align all charts to top */
+        }
+
+        .shift-charts-container.sidebyside .chart-container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .shift-charts-container.sidebyside .chart-container canvas {
+            flex: 1;
+            width: 100% !important;
+        }
+
+        /* Mean Statistics Section - Only Horizontal Bars */
+        .mean-statistics {
+            margin-top: 40px; /* More margin */
+            background: rgba(0, 30, 60, 0.9);
+            border: 2px solid #0af;
+            border-radius: 15px;
+            padding: 25px; /* More padding */
+        }
+
+        .mean-stats-title {
+            text-align: center;
+            font-size: 1.5em; /* Slightly larger */
+            color: #0ff;
+            margin-bottom: 25px; /* More margin */
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .mean-stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: rgba(0, 20, 40, 0.6);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .mean-stats-table th,
+        .mean-stats-table td {
+            padding: 15px; /* More padding */
+            text-align: center;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        .mean-stats-table th {
+            background: rgba(0, 60, 120, 0.8);
+            color: #0ff;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .mean-stats-table td {
+            color: #0af;
+            font-size: 1.1em;
+        }
+
+        .horizontal-bar-container {
+            width: 100%;
+            height: 25px; /* Taller bars */
+            background: rgba(0, 20, 40, 0.3);
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 8px 0;
+            position: relative;
+        }
+
+        .horizontal-bar {
+            height: 100%;
+            border-radius: 5px;
+            background: linear-gradient(90deg, rgba(0, 255, 255, 0.8), rgba(0, 200, 255, 0.8));
+            transition: width 0.5s ease;
+            position: relative;
+            box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+
+        .bar-value {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 25px; /* More padding */
+            font-size: 1.3em; /* Slightly larger */
+            animation: pulse 1s infinite;
+        }
+
+        .error {
+            background: rgba(180, 0, 0, 0.9);
+            border: 2px solid #f00;
+            color: #fff;
+            padding: 20px; /* More padding */
+            border-radius: 10px; /* Larger radius */
+            margin: 15px 0; /* More margin */
+            text-align: center;
+        }
+
+        .success {
+            background: rgba(0, 180, 0, 0.9);
+            border: 2px solid #0f0;
+            color: #fff;
+            padding: 20px; /* More padding */
+            border-radius: 10px; /* Larger radius */
+            margin: 15px 0; /* More margin */
+            text-align: center;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        @media (max-width: 1200px) {
+            .shift-charts-container.sidebyside {
+                grid-template-columns: 1fr; /* Stack on smaller screens */
+            }
+            
+            .stat-card {
+                flex: 1 1 calc(33.333% - 20px); /* 3 cards per row on medium screens */
+                max-width: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px; /* Adjusted for mobile */
+            }
+            
+            h1 {
+                font-size: 1.8em;
+                letter-spacing: 2px;
+            }
+
+            .bar-chart-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .sensor-checkboxes {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            }
+
+            .quote-text {
+                font-size: 0.8em;
+            }
+
+            .quote-container {
+                top: 75%;
+                width: 90%;
+            }
+
+            .mean-stats-table {
+                font-size: 0.9em;
+            }
+
+            .mean-stats-table th,
+            .mean-stats-table td {
+                padding: 10px; /* Less padding on mobile */
+            }
+            
+            .stat-card {
+                flex: 1 1 calc(50% - 20px); /* 2 cards per row on mobile */
+                min-width: 140px;
+            }
+            
+            .stat-card.overall {
+                min-width: 200px;
+                max-width: 100%;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .stat-card {
+                flex: 1 1 100%; /* 1 card per row on very small screens */
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Quote Display Container -->
+    <div class="quote-container" id="quoteContainer"></div>
+    
+    <div class="scanline"></div>
+    
+    <div class="container">
+        <header>
+            <h1>CPIL CHENNAI</h1>
+            <div style="font-size: 1.3em; color: #0af; margin-top: 10px;">DRYER CHAMBER TEMPERATURE ANALYTICS</div>
+        </header>
+
+        <div id="uploadSection">
+            <div class="upload-zone" onclick="document.getElementById('csvFile').click()">
+                <div class="upload-icon-container">
+                    <div class="upload-icon"></div>
+                    <div class="data-stream" id="dataStream"></div>
+                    <div class="scan-beam"></div>
+                    <div class="grid-overlay"></div>
+                    <div class="grid-nodes"></div>
+                </div>
+                <div style="font-size: 1.3em; margin: 15px 0;">UPLOAD CSV DATA FILE</div>
+                <div style="font-size: 1em; opacity: 0.8; margin-top: 10px;">Click here or drag & drop your CSV file</div>
+            </div>
+            
+            <input type="file" id="csvFile" accept=".csv" />
+        </div>
+
+        <div id="dataSummary" class="data-summary" style="display: none;"></div>
+
+        <div id="controlsSection" style="display: none;">
+            <div class="controls-panel">
+                <div class="filter-type-selector">
+                    <button class="filter-type-btn active" onclick="setFilterType('predefined')">Predefined Time Range</button>
+                    <button class="filter-type-btn" onclick="setFilterType('custom')">Custom Date/Time Range</button>
+                    <button class="filter-type-btn" onclick="setFilterType('shiftwise')">Shiftwise Analysis</button>
+                </div>
+
+                <!-- Predefined Time Range Section -->
+                <div id="predefinedSection" class="filter-section active">
+                    <div class="filter-section-title" id="predefinedTitle">PREDEFINED TIME RANGE</div>
+                    <div class="time-range-grid">
+                        <button class="time-range-btn" data-range="1h" onclick="setTimeRange('1h')">Last 1 Hour</button>
+                        <button class="time-range-btn" data-range="6h" onclick="setTimeRange('6h')">Last 6 Hours</button>
+                        <button class="time-range-btn" data-range="12h" onclick="setTimeRange('12h')">Last 12 Hours</button>
+                        <button class="time-range-btn active" data-range="24h" onclick="setTimeRange('24h')">Last 24 Hours</button>
+                        <button class="time-range-btn" data-range="3d" onclick="setTimeRange('3d')">Last 3 Days</button>
+                        <button class="time-range-btn" data-range="7d" onclick="setTimeRange('7d')">Last 7 Days</button>
+                        <button class="time-range-btn" data-range="all" onclick="setTimeRange('all')">All Data</button>
+                    </div>
+                </div>
+
+                <!-- Custom Date/Time Range Section -->
+                <div id="customSection" class="filter-section">
+                    <div class="filter-section-title">CUSTOM DATE & TIME RANGE</div>
+                    <div class="custom-range-grid">
+                        <div class="date-time-input">
+                            <label>Start Date & Time</label>
+                            <div class="date-time-row">
+                                <input type="date" id="customStartDate">
+                                <input type="time" id="customStartTime">
+                            </div>
+                        </div>
+                        <div class="date-time-input">
+                            <label>End Date & Time</label>
+                            <div class="date-time-row">
+                                <input type="date" id="customEndDate">
+                                <input type="time" id="customEndTime">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shiftwise Analysis Section -->
+                <div id="shiftwiseSection" class="filter-section">
+                    <div class="filter-section-title">SHIFTWISE ANALYSIS</div>
+                    
+                    <div class="shift-grid">
+                        <button class="shift-btn active" data-shift="8hour" onclick="setShift('8hour')">8-Hour Shiftwise</button>
+                        <button class="shift-btn" data-shift="12hour" onclick="setShift('12hour')">12-Hour Shiftwise</button>
+                    </div>
+
+                    <div style="display: flex; gap: 20px; align-items: flex-end; justify-content: center; margin: 20px 0; flex-wrap: wrap;">
+                        <div class="shift-date-selector" style="margin: 0;">
+                            <label>Select Date</label>
+                            <input type="date" id="shiftDate">
+                        </div>
+                        <div style="padding-bottom: 2px;">
+                            <button class="view-toggle" id="shiftToggleBtn" onclick="toggleShiftView()" style="display: none;">
+                                <span id="toggleBtnText">View Side-by-Side</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chamber Selection -->
+                <div class="filter-section-title" style="margin-top: 25px;">SELECT CHAMBERS</div>
+                <div class="sensor-checkboxes" id="sensorCheckboxes"></div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button onclick="applyFilters()">Apply Filter</button>
+                    <button class="reset" onclick="resetFilters()">Reset</button>
+                    <button class="export" onclick="exportAsPDF()">Export as PDF</button>
+                    <button class="upload-new" onclick="uploadNewFile()">Upload New CSV</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">PROCESSING DATA...</div>
+
+        <div id="chartsSection" style="display: none;">
+            <!-- Main Temperature Trends Chart -->
+            <div class="chart-container" id="mainChartContainer">
+                <div class="chart-title">TEMPERATURE TRENDS</div>
+                <canvas id="tempChart"></canvas>
+            </div>
+
+            <!-- Shift-wise Charts Container (for 8-hour and 12-hour shifts) -->
+            <div id="shiftChartsContainer" class="shift-charts-container" style="display: none;"></div>
+
+            <!-- Mean Statistics Section with Horizontal Bars Only -->
+            <div id="meanStatisticsSection" class="mean-statistics" style="display: none;">
+                <div class="mean-stats-title">MEAN STATISTICS - SHIFTWISE ANALYSIS</div>
+                <div id="meanStatsTable"></div>
+            </div>
+
+            <!-- Combined Statistics Section -->
+            <div class="chart-container">
+                <div class="chart-title">STATISTICS</div>
+                
+                <!-- Summary Cards - Fixed layout -->
+                <div id="statsGrid" class="stats-grid"></div>
+
+                <!-- Bar Charts -->
+                <div class="bar-chart-grid" id="barChartGrid">
+                    <div class="bar-chart-item">
+                        <div class="bar-chart-title">Average</div>
+                        <canvas id="avgBarChart"></canvas>
+                    </div>
+                    <div class="bar-chart-item">
+                        <div class="bar-chart-title">Minimum</div>
+                        <canvas id="minBarChart"></canvas>
+                    </div>
+                    <div class="bar-chart-item">
+                        <div class="bar-chart-title">Maximum</div>
+                        <canvas id="maxBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Quotes database
+        const quotes = [
+            {
+                text: "Quality is never an accident; it is always the result of intelligent effort.",
+                author: "John Ruskin"
+            },
+            {
+                text: "Excellence is not a skill, it's an attitude.",
+                author: "Ralph Marston"
+            },
+            {
+                text: "Quality means doing it right when no one is looking.",
+                author: "Henry Ford"
+            },
+            {
+                text: "The pursuit of perfection often impedes improvement.",
+                author: "George Will"
+            },
+            {
+                text: "Quality is not an act, it is a habit.",
+                author: "Aristotle"
+            },
+            {
+                text: "Better a diamond with a flaw than a pebble without.",
+                author: "Confucius"
+            },
+            {
+                text: "Quality begins on the inside... and then works its way out.",
+                author: "Bob Moawad"
+            },
+            {
+                text: "Precision is the soul of manufacturing excellence.",
+                author: "Anonymous"
+            },
+            {
+                text: "Data-driven decisions create quality-driven results.",
+                author: "Analytics Proverb"
+            },
+            {
+                text: "Continuous improvement is better than delayed perfection.",
+                author: "Mark Twain"
+            },
+            {
+                text: "Temperature control is the heartbeat of quality drying.",
+                author: "Manufacturing Wisdom"
+            },
+            {
+                text: "Every degree matters in the pursuit of perfection.",
+                author: "Quality Engineer"
+            },
+            {
+                text: "Analytics transform data into actionable intelligence.",
+                author: "CPIL Chennai"
+            },
+            {
+                text: "Shift by shift, we build quality into every product.",
+                author: "Production Mantra"
+            }
+        ];
+
+        let usedQuotes = new Set();
+        let quoteInterval = null;
+        let rawData = [];
+        let filteredData = [];
+        let tempChart = null;
+        let shiftCharts = [];
+        let barCharts = [];
+        let currentFilterType = 'predefined';
+        let currentShift = '8hour';
+        let currentTimeRange = '24h';
+        let shiftViewMode = 'stacked';
+        let activeChambers = [];
+        
+        const colors = [
+            '#00f5ff',  // Chamber 1 - Cyan
+            '#ff00ff',  // Chamber 2 - Magenta
+            '#00ff00',  // Chamber 3 - Green
+            '#ffff00',  // Chamber 4 - Yellow
+            '#ff8800',  // Chamber 5 - Orange
+            '#8888ff',  // Chamber 6 - Blue
+            '#ff0080',  // Chamber 7 - Pink
+            '#80ff00',  // Chamber 8 - Lime
+        ];
+
+        // Initialize quote display system
+        function initQuoteSystem() {
+            showRandomQuote();
+            quoteInterval = setInterval(showRandomQuote, 5000);
+        }
+
+        function showRandomQuote() {
+            if (usedQuotes.size >= quotes.length) {
+                usedQuotes.clear();
+            }
+            
+            let availableQuotes = quotes.filter((_, index) => !usedQuotes.has(index));
+            if (availableQuotes.length === 0) {
+                availableQuotes = quotes;
+            }
+            
+            const randomIndex = Math.floor(Math.random() * availableQuotes.length);
+            const quote = availableQuotes[randomIndex];
+            const actualIndex = quotes.findIndex(q => q.text === quote.text && q.author === quote.author);
+            
+            usedQuotes.add(actualIndex);
+            displayQuote(quote.text, quote.author);
+        }
+
+        function displayQuote(text, author) {
+            const container = document.getElementById('quoteContainer');
+            const quoteIcon = ['🔬', '⚡', '📊', '🌡️', '⚙️', '💡', '🎯', '🚀'][Math.floor(Math.random() * 8)];
+            
+            container.innerHTML = `
+                <div class="quote-display">
+                    <div class="quote-icon">${quoteIcon}</div>
+                    <div class="quote-text">"${text}"</div>
+                    <div class="quote-author">— ${author}</div>
+                </div>
+            `;
+        }
+
+        function stopQuoteDisplay() {
+            if (quoteInterval) {
+                clearInterval(quoteInterval);
+                quoteInterval = null;
+            }
+            document.getElementById('quoteContainer').innerHTML = '';
+        }
+
+        function restartQuoteDisplay() {
+            usedQuotes.clear();
+            initQuoteSystem();
+        }
+
+        function initUploadAnimation() {
+            const dataStream = document.getElementById('dataStream');
+            const gridNodes = document.querySelector('.grid-nodes');
+            
+            for (let i = 0; i < 8; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'data-particle';
+                particle.style.left = `${Math.random() * 100}%`;
+                particle.style.animationDelay = `${Math.random() * 2}s`;
+                dataStream.appendChild(particle);
+            }
+            
+            const positions = [
+                [20, 20], [80, 20], [20, 80], [80, 80],
+                [20, 50], [50, 20], [80, 50], [50, 80]
+            ];
+            
+            positions.forEach(([left, top]) => {
+                const node = document.createElement('div');
+                node.className = 'grid-node';
+                node.style.left = `${left}%`;
+                node.style.top = `${top}%`;
+                node.style.animationDelay = `${Math.random() * 2}s`;
+                gridNodes.appendChild(node);
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initUploadAnimation();
+            initQuoteSystem();
+            document.getElementById('csvFile').addEventListener('change', handleFileUpload);
+        });
+        
+        // Initialize date inputs to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('customStartDate').value = today;
+        document.getElementById('customStartTime').value = '00:00';
+        document.getElementById('customEndDate').value = today;
+        document.getElementById('customEndTime').value = '23:59';
+        document.getElementById('shiftDate').value = today;
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            stopQuoteDisplay();
+            showLoading(true);
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    parseCSV(e.target.result);
+                    document.getElementById('uploadSection').style.display = 'none';
+                    document.getElementById('controlsSection').style.display = 'block';
+                    document.getElementById('dataSummary').style.display = 'grid';
+                    showLoading(false);
+                } catch (error) {
+                    console.error('Parse error:', error);
+                    showError('Error parsing CSV file: ' + error.message);
+                    showLoading(false);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            
+            rawData = [];
+            let numSensors = 0;
+            
+            const firstLine = lines[0].toLowerCase();
+            const hasHeader = firstLine.includes('timestamp') || firstLine.includes('date') || firstLine.includes('time');
+            const startIndex = hasHeader ? 1 : 0;
+            
+            for (let i = startIndex; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                if (values.length < 3) continue;
+                
+                let timestamp;
+                let sensorStartIndex;
+                
+                if (values[0].includes('-') && values[1].includes(':')) {
+                    const dateParts = values[0].split('-');
+                    const timeParts = values[1].split(':');
+                    
+                    const day = parseInt(dateParts[0]);
+                    const month = parseInt(dateParts[1]) - 1;
+                    const year = parseInt(dateParts[2]);
+                    const hour = parseInt(timeParts[0]);
+                    const minute = parseInt(timeParts[1]);
+                    const second = parseInt(timeParts[2] || 0);
+                    
+                    timestamp = new Date(year, month, day, hour, minute, second);
+                    sensorStartIndex = 2;
+                } else {
+                    timestamp = new Date(values[0]);
+                    sensorStartIndex = 1;
+                }
+                
+                const sensors = values.slice(sensorStartIndex).map(v => {
+                    if (v === '' || v.toUpperCase() === 'OPEN' || v.toUpperCase() === 'B000') {
+                        return null;
+                    }
+                    const num = parseFloat(v);
+                    return isNaN(num) ? null : num;
+                });
+                
+                if (numSensors === 0) {
+                    numSensors = sensors.length;
+                }
+                
+                rawData.push({
+                    timestamp: timestamp,
+                    sensors: sensors
+                });
+            }
+            
+            rawData.sort((a, b) => a.timestamp - b.timestamp);
+            
+            activeChambers = [];
+            for (let i = 0; i < numSensors; i++) {
+                const hasData = rawData.some(item => item.sensors[i] !== null);
+                if (hasData) {
+                    activeChambers.push(i);
+                }
+            }
+            
+            if (rawData.length > 0) {
+                const lastUpdate = rawData[rawData.length - 1].timestamp;
+                const dateStr = `${lastUpdate.getDate().toString().padStart(2, '0')}/${(lastUpdate.getMonth() + 1).toString().padStart(2, '0')}/${lastUpdate.getFullYear()}`;
+                const timeStr = `${lastUpdate.getHours().toString().padStart(2, '0')}:${lastUpdate.getMinutes().toString().padStart(2, '0')}:${lastUpdate.getSeconds().toString().padStart(2, '0')}`;
+                document.getElementById('predefinedTitle').textContent = `PREDEFINED TIME RANGE (Last Update: ${dateStr} ${timeStr})`;
+            }
+            
+            generateSensorCheckboxes(numSensors);
+            updateDataSummary();
+            applyFilters();
+        }
+
+        function updateDataSummary() {
+            if (rawData.length === 0) return;
+            
+            const startDate = rawData[0].timestamp;
+            const endDate = rawData[rawData.length - 1].timestamp;
+            const duration = Math.round((endDate - startDate) / (1000 * 60 * 60));
+            
+            const summary = document.getElementById('dataSummary');
+            summary.innerHTML = `
+                <div class="summary-item">
+                    <div class="summary-label">DATA POINTS</div>
+                    <div class="summary-value">${rawData.length.toLocaleString()}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">ACTIVE CHAMBERS</div>
+                    <div class="summary-value">${activeChambers.length}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">FROM</div>
+                    <div class="summary-value">${startDate.getDate()}/${startDate.getMonth() + 1}/${startDate.getFullYear()}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">TO</div>
+                    <div class="summary-value">${endDate.getDate()}/${endDate.getMonth() + 1}/${endDate.getFullYear()}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">DURATION</div>
+                    <div class="summary-value">${duration} hours</div>
+                </div>
+            `;
+        }
+
+        function generateSensorCheckboxes(count) {
+            const container = document.getElementById('sensorCheckboxes');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < count; i++) {
+                const isActive = activeChambers.includes(i);
+                
+                const div = document.createElement('div');
+                div.className = 'checkbox-item';
+                div.style.borderColor = colors[i % colors.length];
+                
+                if (!isActive) {
+                    div.style.opacity = '0.4';
+                    div.style.cursor = 'not-allowed';
+                }
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `sensor${i}`;
+                checkbox.checked = isActive;
+                checkbox.disabled = !isActive;
+                checkbox.onchange = applyFilters;
+                
+                const label = document.createElement('label');
+                label.htmlFor = `sensor${i}`;
+                label.textContent = `Chamber ${i + 1}${!isActive ? ' (NA)' : ''}`;
+                label.style.color = colors[i % colors.length];
+                
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                container.appendChild(div);
+            }
+        }
+
+        function setFilterType(type) {
+            currentFilterType = type;
+            
+            document.querySelectorAll('.filter-type-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            document.getElementById('predefinedSection').classList.remove('active');
+            document.getElementById('customSection').classList.remove('active');
+            document.getElementById('shiftwiseSection').classList.remove('active');
+            
+            const toggleBtn = document.getElementById('shiftToggleBtn');
+            if (type === 'shiftwise') {
+                document.getElementById('shiftwiseSection').classList.add('active');
+                toggleBtn.style.display = 'block';
+            } else {
+                toggleBtn.style.display = 'none';
+                if (type === 'predefined') {
+                    document.getElementById('predefinedSection').classList.add('active');
+                } else if (type === 'custom') {
+                    document.getElementById('customSection').classList.add('active');
+                }
+            }
+        }
+
+        function setTimeRange(range) {
+            currentTimeRange = range;
+            document.querySelectorAll('.time-range-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        function setShift(shift) {
+            currentShift = shift;
+            document.querySelectorAll('.shift-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        function applyFilters() {
+            if (rawData.length === 0) return;
+
+            showLoading(true);
+            
+            const selectedSensors = [];
+            const checkboxes = document.querySelectorAll('#sensorCheckboxes input[type="checkbox"]');
+            checkboxes.forEach((cb, index) => {
+                if (cb.checked && !cb.disabled) selectedSensors.push(index);
+            });
+
+            if (selectedSensors.length === 0) {
+                showError('Please select at least one active chamber');
+                showLoading(false);
+                return;
+            }
+
+            if (currentFilterType === 'predefined') {
+                filterPredefinedRange(selectedSensors);
+            } else if (currentFilterType === 'custom') {
+                filterCustomRange(selectedSensors);
+            } else if (currentFilterType === 'shiftwise') {
+                filterShiftwise(selectedSensors);
+            }
+        }
+
+        function filterPredefinedRange(selectedSensors) {
+            const latestTime = rawData[rawData.length - 1].timestamp;
+            let startTime;
+
+            switch(currentTimeRange) {
+                case '1h':
+                    startTime = new Date(latestTime.getTime() - 1 * 60 * 60 * 1000);
+                    break;
+                case '6h':
+                    startTime = new Date(latestTime.getTime() - 6 * 60 * 60 * 1000);
+                    break;
+                case '12h':
+                    startTime = new Date(latestTime.getTime() - 12 * 60 * 60 * 1000);
+                    break;
+                case '24h':
+                    startTime = new Date(latestTime.getTime() - 24 * 60 * 60 * 1000);
+                    break;
+                case '3d':
+                    startTime = new Date(latestTime.getTime() - 3 * 24 * 60 * 60 * 1000);
+                    break;
+                case '7d':
+                    startTime = new Date(latestTime.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+                case 'all':
+                    startTime = rawData[0].timestamp;
+                    break;
+                default:
+                    startTime = new Date(latestTime.getTime() - 24 * 60 * 60 * 1000);
+            }
+
+            filteredData = rawData.filter(item => item.timestamp >= startTime);
+
+            if (filteredData.length === 0) {
+                showError('No data found in the selected time range');
+                showLoading(false);
+                return;
+            }
+
+            document.getElementById('meanStatisticsSection').style.display = 'none';
+            updateCharts(selectedSensors, false);
+            showLoading(false);
+        }
+
+        function filterCustomRange(selectedSensors) {
+            const startDate = document.getElementById('customStartDate').value;
+            const startTime = document.getElementById('customStartTime').value;
+            const endDate = document.getElementById('customEndDate').value;
+            const endTime = document.getElementById('customEndTime').value;
+
+            if (!startDate || !startTime || !endDate || !endTime) {
+                showError('Please select both start and end date/time');
+                showLoading(false);
+                return;
+            }
+
+            const startDateTime = new Date(`${startDate}T${startTime}`);
+            const endDateTime = new Date(`${endDate}T${endTime}`);
+
+            if (startDateTime >= endDateTime) {
+                showError('End date/time must be after start date/time');
+                showLoading(false);
+                return;
+            }
+
+            filteredData = rawData.filter(item => 
+                item.timestamp >= startDateTime && item.timestamp <= endDateTime
+            );
+
+            if (filteredData.length === 0) {
+                showError('No data found in the selected time range');
+                showLoading(false);
+                return;
+            }
+
+            document.getElementById('meanStatisticsSection').style.display = 'none';
+            updateCharts(selectedSensors, false);
+            showLoading(false);
+        }
+
+        function filterShiftwise(selectedSensors) {
+            const shiftDate = document.getElementById('shiftDate').value;
+            
+            if (!shiftDate) {
+                showError('Please select a date for shift analysis');
+                showLoading(false);
+                return;
+            }
+
+            const selectedDate = new Date(shiftDate);
+            const shifts = currentShift === '8hour' ? 
+                [
+                    { name: 'Shift A (7AM - 3PM)', start: 7, end: 15 },
+                    { name: 'Shift B (3PM - 11PM)', start: 15, end: 23 },
+                    { name: 'Shift C (11PM - 7AM of next day)', start: 23, end: 31 }
+                ] :
+                [
+                    { name: 'Shift A (7AM-7PM)', start: 7, end: 19 },
+                    { name: 'Shift B (7PM-7AM of next day)', start: 19, end: 31 }
+                ];
+
+            const shiftDataArray = [];
+            
+            shifts.forEach(shift => {
+                let shiftStart, shiftEnd;
+                
+                if (shift.start >= 24) {
+                    shiftStart = new Date(selectedDate);
+                    shiftStart.setDate(shiftStart.getDate() - 1);
+                    shiftStart.setHours(shift.start - 24, 0, 0, 0);
+                    
+                    shiftEnd = new Date(selectedDate);
+                    shiftEnd.setHours(shift.end - 24, 0, 0, 0);
+                } else if (shift.end > 24) {
+                    shiftStart = new Date(selectedDate);
+                    shiftStart.setHours(shift.start, 0, 0, 0);
+                    
+                    shiftEnd = new Date(selectedDate);
+                    shiftEnd.setDate(shiftEnd.getDate() + 1);
+                    shiftEnd.setHours(shift.end - 24, 0, 0, 0);
+                } else {
+                    shiftStart = new Date(selectedDate);
+                    shiftStart.setHours(shift.start, 0, 0, 0);
+                    
+                    shiftEnd = new Date(selectedDate);
+                    shiftEnd.setHours(shift.end, 0, 0, 0);
+                }
+
+                const shiftData = rawData.filter(item => 
+                    item.timestamp >= shiftStart && item.timestamp < shiftEnd
+                );
+                
+                shiftDataArray.push({
+                    name: shift.name,
+                    data: shiftData
+                });
+            });
+
+            const totalDataPoints = shiftDataArray.reduce((sum, shift) => sum + shift.data.length, 0);
+            if (totalDataPoints === 0) {
+                showError('No data found for the selected shift date');
+                showLoading(false);
+                return;
+            }
+
+            updateShiftCharts(selectedSensors, shiftDataArray);
+            updateMeanStatistics(selectedSensors, shiftDataArray);
+            showLoading(false);
+        }
+
+        function updateMeanStatistics(selectedSensors, shiftDataArray) {
+            // Create table with horizontal bars only - no duplicate cards
+            let tableHTML = '<table class="mean-stats-table">';
+            
+            // Header row
+            tableHTML += '<thead><tr><th>Chamber</th>';
+            shiftDataArray.forEach(shift => {
+                tableHTML += `<th>${shift.name}</th>`;
+            });
+            tableHTML += '</tr></thead><tbody>';
+            
+            // Find max value for scaling bars
+            let maxValue = 0;
+            const shiftStats = [];
+            
+            shiftDataArray.forEach((shift, shiftIndex) => {
+                const stats = {};
+                selectedSensors.forEach(sensorIndex => {
+                    const values = shift.data
+                        .map(item => item.sensors[sensorIndex])
+                        .filter(value => value !== null);
+                    
+                    if (values.length > 0) {
+                        const mean = (values.reduce((a, b) => a + b, 0) / values.length);
+                        stats[sensorIndex] = mean;
+                        if (mean > maxValue) maxValue = mean;
+                    } else {
+                        stats[sensorIndex] = null;
+                    }
+                });
+                shiftStats.push(stats);
+            });
+            
+            // Add some padding to max value for better bar visualization
+            maxValue = Math.ceil(maxValue + 5);
+            
+            // Data rows with horizontal bars
+            selectedSensors.forEach(sensorIndex => {
+                tableHTML += `<tr><td style="color: ${colors[sensorIndex % colors.length]}; font-weight: bold;">Chamber ${sensorIndex + 1}</td>`;
+                
+                shiftStats.forEach((stats, shiftIndex) => {
+                    const mean = stats[sensorIndex];
+                    if (mean !== null) {
+                        const percentage = (mean / maxValue) * 100;
+                        tableHTML += `
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="flex: 1;">
+                                        <div class="horizontal-bar-container">
+                                            <div class="horizontal-bar" style="width: ${percentage}%; background: ${colors[sensorIndex % colors.length]}">
+                                                <div class="bar-value">${mean.toFixed(1)}°C</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="min-width: 60px; text-align: right; font-weight: bold; color: ${colors[sensorIndex % colors.length]}">
+                                        ${mean.toFixed(1)}°C
+                                    </div>
+                                </div>
+                            </td>
+                        `;
+                    } else {
+                        tableHTML += '<td style="color: #888; font-style: italic;">No Data</td>';
+                    }
+                });
+                tableHTML += '</tr>';
+            });
+            
+            tableHTML += '</tbody></table>';
+            document.getElementById('meanStatsTable').innerHTML = tableHTML;
+            document.getElementById('meanStatisticsSection').style.display = 'block';
+        }
+
+        function updateCharts(selectedSensors, isShiftMode) {
+            document.getElementById('chartsSection').style.display = 'block';
+            document.getElementById('mainChartContainer').style.display = isShiftMode ? 'none' : 'block';
+            document.getElementById('shiftChartsContainer').style.display = 'none';
+            
+            if (!isShiftMode) {
+                const datasets = selectedSensors.map(sensorIndex => ({
+                    label: `Chamber ${sensorIndex + 1}`,
+                    data: filteredData.map(item => ({
+                        x: item.timestamp,
+                        y: item.sensors[sensorIndex]
+                    })),
+                    borderColor: colors[sensorIndex % colors.length],
+                    backgroundColor: colors[sensorIndex % colors.length] + '20',
+                    tension: 0.1,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    borderWidth: 2
+                }));
+
+                const ctx = document.getElementById('tempChart').getContext('2d');
+                
+                if (tempChart) {
+                    tempChart.destroy();
+                }
+
+                tempChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        aspectRatio: 2.5,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: {
+                                    color: '#0ff',
+                                    font: { family: 'Courier New', size: 12 }
+                                }
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                backgroundColor: 'rgba(0, 20, 40, 0.9)',
+                                titleColor: '#0ff',
+                                bodyColor: '#0ff',
+                                borderColor: '#0ff',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    displayFormats: {
+                                        hour: 'dd/MM/yyyy HH:mm',
+                                        minute: 'dd/MM/yyyy HH:mm',
+                                        day: 'dd/MM/yyyy'
+                                    },
+                                    tooltipFormat: 'dd/MM/yyyy HH:mm:ss'
+                                },
+                                ticks: { color: '#0ff', font: { family: 'Courier New', size: 10 } },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                beginAtZero: false,
+                                ticks: { 
+                                    color: '#0ff',
+                                    font: { family: 'Courier New' },
+                                    callback: value => value + '°C'
+                                },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                });
+            }
+
+            updateStatistics(selectedSensors);
+        }
+
+        function updateShiftCharts(selectedSensors, shiftDataArray) {
+            document.getElementById('chartsSection').style.display = 'block';
+            document.getElementById('mainChartContainer').style.display = 'none';
+            
+            const container = document.getElementById('shiftChartsContainer');
+            container.style.display = 'grid';
+            container.className = 'shift-charts-container ' + shiftViewMode;
+            
+            shiftCharts.forEach(chart => chart.destroy());
+            shiftCharts = [];
+            
+            container.innerHTML = '';
+            
+            shiftDataArray.forEach((shiftInfo, index) => {
+                if (shiftInfo.data.length === 0) return;
+                
+                const chartDiv = document.createElement('div');
+                chartDiv.className = 'chart-container';
+                chartDiv.innerHTML = `
+                    <div class="chart-title">${shiftInfo.name}</div>
+                    <canvas id="shiftChart${index}"></canvas>
+                `;
+                container.appendChild(chartDiv);
+                
+                const datasets = selectedSensors.map(sensorIndex => ({
+                    label: `Chamber ${sensorIndex + 1}`,
+                    data: shiftInfo.data.map(item => ({
+                        x: item.timestamp,
+                        y: item.sensors[sensorIndex]
+                    })),
+                    borderColor: colors[sensorIndex % colors.length],
+                    backgroundColor: colors[sensorIndex % colors.length] + '20',
+                    tension: 0.1,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    borderWidth: 2
+                }));
+                
+                const ctx = document.getElementById(`shiftChart${index}`).getContext('2d');
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: { datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        aspectRatio: 2.0,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: {
+                                    color: '#0ff',
+                                    font: { family: 'Courier New', size: 12 }
+                                }
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                backgroundColor: 'rgba(0, 20, 40, 0.9)',
+                                titleColor: '#0ff',
+                                bodyColor: '#0ff',
+                                borderColor: '#0ff',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    displayFormats: {
+                                        hour: 'dd/MM/yyyy HH:mm',
+                                        minute: 'dd/MM/yyyy HH:mm',
+                                        day: 'dd/MM/yyyy'
+                                    },
+                                    tooltipFormat: 'dd/MM/yyyy HH:mm:ss'
+                                },
+                                ticks: { color: '#0ff', font: { family: 'Courier New', size: 10 } },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                beginAtZero: false,
+                                ticks: { 
+                                    color: '#0ff',
+                                    font: { family: 'Courier New' },
+                                    callback: value => value + '°C'
+                                },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                });
+                
+                shiftCharts.push(chart);
+            });
+            
+            // Resize charts to ensure proper alignment
+            setTimeout(() => {
+                shiftCharts.forEach(chart => chart.resize());
+            }, 100);
+            
+            filteredData = [];
+            shiftDataArray.forEach(shift => {
+                filteredData = filteredData.concat(shift.data);
+            });
+            filteredData.sort((a, b) => a.timestamp - b.timestamp);
+            
+            updateStatistics(selectedSensors);
+        }
+
+        function updateStatistics(selectedSensors) {
+            const container = document.getElementById('statsGrid');
+            let html = '';
+            
+            const barChartData = {
+                labels: [],
+                averages: [],
+                minimums: [],
+                maximums: []
+            };
+            
+            // Overall card
+            if (selectedSensors.length > 1) {
+                const overallValues = [];
+                filteredData.forEach(item => {
+                    selectedSensors.forEach(sensorIndex => {
+                        const value = item.sensors[sensorIndex];
+                        if (value !== null) overallValues.push(value);
+                    });
+                });
+                
+                if (overallValues.length > 0) {
+                    const avg = (overallValues.reduce((a, b) => a + b, 0) / overallValues.length).toFixed(1);
+                    const min = Math.min(...overallValues).toFixed(1);
+                    const max = Math.max(...overallValues).toFixed(1);
+                    
+                    html += `
+                        <div class="stat-card overall">
+                            <div style="font-size: 1em; color: #fff;">OVERALL AVERAGE</div>
+                            <div style="font-size: 1.6em; color: #fff;">${avg}°C</div>
+                            <div style="font-size: 0.9em; color: #ccc;">Min: ${min}°C | Max: ${max}°C</div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Chamber cards - all in one row
+            selectedSensors.forEach(sensorIndex => {
+                const values = filteredData
+                    .map(item => item.sensors[sensorIndex])
+                    .filter(value => value !== null);
+                
+                barChartData.labels.push(`Chamber ${sensorIndex + 1}`);
+                
+                if (values.length === 0) {
+                    html += `
+                        <div class="stat-card" style="border-color: ${colors[sensorIndex % colors.length]}">
+                            <div style="font-size: 1em; color: #0af;">CHAMBER ${sensorIndex + 1}</div>
+                            <div style="font-size: 1.3em; color: #f00;">NO DATA</div>
+                            <div style="font-size: 0.9em;">All values are OPEN/B000</div>
+                        </div>
+                    `;
+                    
+                    barChartData.averages.push(null);
+                    barChartData.minimums.push(null);
+                    barChartData.maximums.push(null);
+                    return;
+                }
+                
+                const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+                const min = Math.min(...values).toFixed(1);
+                const max = Math.max(...values).toFixed(1);
+                
+                html += `
+                    <div class="stat-card" style="border-color: ${colors[sensorIndex % colors.length]}">
+                        <div style="font-size: 1em; color: #0af;">CHAMBER ${sensorIndex + 1}</div>
+                        <div style="font-size: 1.6em; color: ${colors[sensorIndex % colors.length]}">${avg}°C</div>
+                        <div style="font-size: 0.9em;">Min: ${min}°C | Max: ${max}°C</div>
+                    </div>
+                `;
+                
+                barChartData.averages.push(parseFloat(avg));
+                barChartData.minimums.push(parseFloat(min));
+                barChartData.maximums.push(parseFloat(max));
+            });
+            
+            container.innerHTML = html;
+            updateBarCharts(barChartData);
+        }
+
+        function updateBarCharts(chartData) {
+            barCharts.forEach(chart => chart.destroy());
+            barCharts = [];
+            
+            const chartConfigs = [
+                { id: 'avgBarChart', label: 'Average', data: chartData.averages },
+                { id: 'minBarChart', label: 'Minimum', data: chartData.minimums },
+                { id: 'maxBarChart', label: 'Maximum', data: chartData.maximums }
+            ];
+            
+            chartConfigs.forEach(config => {
+                const ctx = document.getElementById(config.id).getContext('2d');
+                
+                const validValues = config.data.filter(v => v !== null);
+                const minValue = validValues.length > 0 ? Math.min(...validValues) : 0;
+                const yAxisMin = Math.max(0, Math.floor(minValue - 4));
+                
+                const chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [{
+                            label: config.label + ' Temperature',
+                            data: config.data,
+                            backgroundColor: config.data.map((value, index) => 
+                                value !== null ? colors[index % colors.length] + '80' : '#66666680'
+                            ),
+                            borderColor: config.data.map((value, index) => 
+                                value !== null ? colors[index % colors.length] : '#666666'
+                            ),
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        aspectRatio: 1.2,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 20, 40, 0.9)',
+                                titleColor: '#0ff',
+                                bodyColor: '#0ff',
+                                borderColor: '#0ff',
+                                borderWidth: 1,
+                                callbacks: {
+                                    label: context => context.parsed.y !== null ? context.parsed.y + '°C' : 'No Data'
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { 
+                                    color: '#0ff',
+                                    font: { family: 'Courier New', size: 10 }
+                                },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                beginAtZero: false,
+                                min: yAxisMin,
+                                ticks: { 
+                                    color: '#0ff',
+                                    font: { family: 'Courier New' },
+                                    callback: value => value + '°C'
+                                },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                });
+                
+                barCharts.push(chart);
+            });
+        }
+
+        function exportAsPDF() {
+            showLoading(true);
+            
+            // Temporarily brighten the UI for export
+            document.body.style.backgroundColor = '#f0f0f0';
+            document.body.style.color = '#000';
+            
+            const originalStyles = {};
+            const elementsToBrighten = document.querySelectorAll('.container, .chart-container, .controls-panel, .data-summary, .mean-statistics, header, .stat-card, .bar-chart-item');
+            
+            elementsToBrighten.forEach(element => {
+                originalStyles[element] = {
+                    backgroundColor: element.style.backgroundColor,
+                    color: element.style.color,
+                    borderColor: element.style.borderColor
+                };
+                
+                element.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                element.style.color = '#000';
+                element.style.borderColor = '#666';
+            });
+            
+            // Wait for UI to update
+            setTimeout(() => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('landscape', 'mm', 'a4');
+                
+                // Add header
+                doc.setFontSize(24);
+                doc.setTextColor(0, 0, 0);
+                doc.text('CPIL CHENNAI', 20, 20);
+                doc.setFontSize(18);
+                doc.text('DRYER CHAMBER TEMPERATURE ANALYTICS', 20, 30);
+                
+                // Add date
+                const now = new Date();
+                const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                doc.setFontSize(12);
+                doc.text(`Report Generated: ${dateStr}`, 20, 40);
+                
+                // Add summary data
+                if (rawData.length > 0) {
+                    const startDate = rawData[0].timestamp;
+                    const endDate = rawData[rawData.length - 1].timestamp;
+                    const duration = Math.round((endDate - startDate) / (1000 * 60 * 60));
+                    
+                    doc.text(`Data Period: ${startDate.getDate()}/${startDate.getMonth() + 1}/${startDate.getFullYear()} to ${endDate.getDate()}/${endDate.getMonth() + 1}/${endDate.getFullYear()}`, 20, 50);
+                    doc.text(`Duration: ${duration} hours | Data Points: ${rawData.length} | Active Chambers: ${activeChambers.length}`, 20, 56);
+                }
+                
+                // Add current filter info
+                let filterInfo = '';
+                if (currentFilterType === 'predefined') {
+                    filterInfo = `Time Range: Last ${currentTimeRange}`;
+                } else if (currentFilterType === 'custom') {
+                    filterInfo = `Custom Range: ${document.getElementById('customStartDate').value} to ${document.getElementById('customEndDate').value}`;
+                } else if (currentFilterType === 'shiftwise') {
+                    filterInfo = `Shift Analysis: ${currentShift === '8hour' ? '8-Hour' : '12-Hour'} shifts for ${document.getElementById('shiftDate').value}`;
+                }
+                doc.text(`Filter Applied: ${filterInfo}`, 20, 62);
+                
+                // Add mean statistics if available
+                const meanStatsSection = document.getElementById('meanStatisticsSection');
+                if (meanStatsSection.style.display !== 'none') {
+                    doc.addPage();
+                    doc.setFontSize(20);
+                    doc.text('MEAN STATISTICS - SHIFTWISE ANALYSIS', 20, 20);
+                    
+                    const meanStatsTable = document.querySelector('.mean-stats-table');
+                    if (meanStatsTable) {
+                        const headers = [];
+                        const data = [];
+                        
+                        // Extract headers
+                        meanStatsTable.querySelectorAll('th').forEach(th => {
+                            headers.push(th.textContent);
+                        });
+                        
+                        // Extract data
+                        meanStatsTable.querySelectorAll('tbody tr').forEach(tr => {
+                            const rowData = [];
+                            tr.querySelectorAll('td').forEach((td, index) => {
+                                if (index === 0) {
+                                    rowData.push(td.textContent);
+                                } else {
+                                    const valueMatch = td.textContent.match(/(\d+\.?\d*)°C/);
+                                    rowData.push(valueMatch ? valueMatch[1] : 'No Data');
+                                }
+                            });
+                            data.push(rowData);
+                        });
+                        
+                        doc.autoTable({
+                            head: [headers],
+                            body: data,
+                            startY: 30,
+                            theme: 'grid',
+                            headStyles: { fillColor: [0, 100, 200] },
+                            alternateRowStyles: { fillColor: [240, 240, 240] }
+                        });
+                    }
+                }
+                
+                // Add statistics
+                doc.addPage();
+                doc.setFontSize(20);
+                doc.text('CHAMBER STATISTICS', 20, 20);
+                
+                const statsCards = document.querySelectorAll('.stat-card:not(.overall)');
+                const statsData = [];
+                statsCards.forEach(card => {
+                    const title = card.querySelector('div:nth-child(1)').textContent;
+                    const avg = card.querySelector('div:nth-child(2)').textContent;
+                    const minMax = card.querySelector('div:nth-child(3)').textContent;
+                    
+                    const minMatch = minMax.match(/Min:\s*(\d+\.?\d*)°C/);
+                    const maxMatch = minMax.match(/Max:\s*(\d+\.?\d*)°C/);
+                    
+                    statsData.push([
+                        title,
+                        avg,
+                        minMatch ? minMatch[1] : '-',
+                        maxMatch ? maxMatch[1] : '-'
+                    ]);
+                });
+                
+                doc.autoTable({
+                    head: [['Chamber', 'Average', 'Minimum', 'Maximum']],
+                    body: statsData,
+                    startY: 30,
+                    theme: 'grid',
+                    headStyles: { fillColor: [0, 100, 200] },
+                    alternateRowStyles: { fillColor: [240, 240, 240] }
+                });
+                
+                // Save the PDF
+                const fileName = `CPIL_Analytics_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.pdf`;
+                doc.save(fileName);
+                
+                // Restore original styles
+                document.body.style.backgroundColor = '#0a0a0f';
+                document.body.style.color = '#0ff';
+                
+                elementsToBrighten.forEach(element => {
+                    if (originalStyles[element]) {
+                        element.style.backgroundColor = originalStyles[element].backgroundColor;
+                        element.style.color = originalStyles[element].color;
+                        element.style.borderColor = originalStyles[element].borderColor;
+                    }
+                });
+                
+                showLoading(false);
+                showSuccess('PDF exported successfully!');
+                
+            }, 500);
+        }
+
+        function resetFilters() {
+            setFilterType('predefined');
+            document.querySelectorAll('.filter-type-btn').forEach((btn, idx) => {
+                btn.classList.remove('active');
+                if (idx === 0) btn.classList.add('active');
+            });
+            
+            currentTimeRange = '24h';
+            document.querySelectorAll('.time-range-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-range') === '24h') {
+                    btn.classList.add('active');
+                }
+            });
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('customStartDate').value = today;
+            document.getElementById('customStartTime').value = '00:00';
+            document.getElementById('customEndDate').value = today;
+            document.getElementById('customEndTime').value = '23:59';
+            document.getElementById('shiftDate').value = today;
+            
+            currentShift = '8hour';
+            document.querySelectorAll('.shift-btn').forEach((btn, idx) => {
+                btn.classList.remove('active');
+                if (idx === 0) btn.classList.add('active');
+            });
+            
+            applyFilters();
+        }
+
+        function uploadNewFile() {
+            if (confirm('Are you sure you want to upload a new CSV file? Current data will be cleared.')) {
+                rawData = [];
+                filteredData = [];
+                activeChambers = [];
+                if (tempChart) tempChart.destroy();
+                shiftCharts.forEach(chart => chart.destroy());
+                shiftCharts = [];
+                barCharts.forEach(chart => chart.destroy());
+                barCharts = [];
+                
+                document.getElementById('uploadSection').style.display = 'block';
+                document.getElementById('controlsSection').style.display = 'none';
+                document.getElementById('chartsSection').style.display = 'none';
+                document.getElementById('dataSummary').style.display = 'none';
+                document.getElementById('meanStatisticsSection').style.display = 'none';
+                
+                document.getElementById('csvFile').value = '';
+                
+                restartQuoteDisplay();
+            }
+        }
+
+        function toggleShiftView() {
+            shiftViewMode = shiftViewMode === 'stacked' ? 'sidebyside' : 'stacked';
+            const container = document.getElementById('shiftChartsContainer');
+            const toggleText = document.getElementById('toggleBtnText');
+            
+            container.className = 'shift-charts-container ' + shiftViewMode;
+            toggleText.textContent = shiftViewMode === 'stacked' ? 'View Side-by-Side' : 'Stack Vertically';
+            
+            setTimeout(() => {
+                shiftCharts.forEach(chart => chart.resize());
+            }, 100);
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            
+            document.querySelectorAll('.error').forEach(el => el.remove());
+            
+            document.querySelector('.container').appendChild(errorDiv);
+            
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.textContent = message;
+            
+            document.querySelectorAll('.success').forEach(el => el.remove());
+            
+            document.querySelector('.container').appendChild(successDiv);
+            
+            setTimeout(() => successDiv.remove(), 3000);
+        }
+
+        document.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                const button = e.target.tagName === 'BUTTON' ? e.target : e.target.closest('button');
+                const rect = button.getBoundingClientRect();
+                
+                const ripple = document.createElement('span');
+                ripple.style.cssText = `
+                    position: absolute;
+                    border-radius: 50%;
+                    background: rgba(0, 255, 255, 0.3);
+                    transform: scale(0);
+                    animation: ripple 0.6s linear;
+                    width: ${Math.max(rect.width, rect.height)}px;
+                    height: ${Math.max(rect.width, rect.height)}px;
+                    left: ${e.clientX - rect.left - Math.max(rect.width, rect.height)/2}px;
+                    top: ${e.clientY - rect.top - Math.max(rect.width, rect.height)/2}px;
+                    pointer-events: none;
+                `;
+                
+                button.style.position = 'relative';
+                button.style.overflow = 'hidden';
+                button.appendChild(ripple);
+                
+                setTimeout(() => ripple.remove(), 600);
+            }
+        });
+
+        window.addEventListener('load', () => {
+            const scanline = document.querySelector('.scanline');
+            scanline.style.opacity = '1';
+        });
+    </script>
+</body>
+</html>
